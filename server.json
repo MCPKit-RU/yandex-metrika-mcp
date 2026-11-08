@@ -1,0 +1,14 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.MCPKit-RU/yandex-metrika-mcp",
+  "title": "MCPKit — Yandex Metrica MCP",
+  "description": "Analyze Yandex Metrica traffic and conversions in ChatGPT with read-only access.",
+  "version": "1.0.0",
+  "websiteUrl": "https://mcpkit.ru/mcp-yandex-metrika?utm_source=official_mcp_registry&utm_medium=mcp_registry&utm_campaign=yandex_metrika",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcpkit.ru/mcp-yandex-metrika/mcp"
+    }
+  ]
+}

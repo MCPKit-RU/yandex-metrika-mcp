@@ -1,0 +1,60 @@
+name: Publish to Official MCP Registry
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: official-mcp-registry-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main' && github.repository_owner == 'MCPKit-RU'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out registry metadata
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned registry publisher
+        run: |
+          archive="$RUNNER_TEMP/mcp-publisher_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location --output "$archive" \
+            https://github.com/modelcontextprotocol/registry/releases/download/v1.8.8/mcp-publisher_linux_amd64.tar.gz
+          echo "09f1fa70ee146b640584274a1a6b2b8a0310b05d4321fa9224e6df6a016d67f4  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP" mcp-publisher
+
+      - name: Validate and publish metadata with OIDC
+        run: |
+          publisher="$RUNNER_TEMP/mcp-publisher"
+          name=$(jq -er '.name' server.json)
+          version=$(jq -er '.version' server.json)
+          test "$name" = "io.github.$GITHUB_REPOSITORY"
+          "$publisher" validate server.json
+
+          record="$RUNNER_TEMP/mcp-registry-record.json"
+          encoded_name=$(jq -rn --arg value "$name" '$value | @uri')
+          encoded_version=$(jq -rn --arg value "$version" '$value | @uri')
+          status=$(curl --silent --show-error --output "$record" --write-out '%{http_code}' \
+            "https://registry.modelcontextprotocol.io/v0.1/servers/$encoded_name/versions/$encoded_version")
+          case "$status" in
+            200)
+              jq -e --slurpfile local server.json '.server | {name,title,version,description,websiteUrl,remotes} == ($local[0] | {name,title,version,description,websiteUrl,remotes})' "$record" >/dev/null
+              echo 'This metadata version is already published.'
+              ;;
+            404)
+              "$publisher" login github-oidc
+              "$publisher" publish
+              ;;
+            *)
+              echo "Unexpected registry HTTP status: $status" >&2
+              exit 1
+              ;;
+          esac
